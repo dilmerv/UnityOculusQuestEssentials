@@ -6,6 +6,6 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Oculus/VR/Scenes/Room.unity
-    guid: 54445976c1dbf1c49bb38ba7eba558e8
+    path: Assets/Scenes/VRMovement.unity
+    guid: 9fc0d4010bbf28b4594072e72b8655ab
   m_configObjects: {}
