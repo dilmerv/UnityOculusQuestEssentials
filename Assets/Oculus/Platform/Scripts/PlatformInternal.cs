@@ -20,7 +20,6 @@ namespace Oculus.Platform
       Cal_FinalizeApplication                       = 0x1DA9CBD5,
       Cal_GetSuggestedApplications                  = 0x56707015,
       Cal_ProposeApplication                        = 0x4E83F2DD,
-      CloudStorage2_GetUserDirectoryPath            = 0x76A42EEE,
       GraphAPI_Get                                  = 0x30FF006E,
       GraphAPI_Post                                 = 0x76A5A7C4,
       HTTP_Get                                      = 0x6FB63223,
@@ -154,7 +153,6 @@ namespace Oculus.Platform
           break;
 
         case MessageTypeInternal.Avatar_UpdateMetaData:
-        case MessageTypeInternal.CloudStorage2_GetUserDirectoryPath:
         case MessageTypeInternal.GraphAPI_Get:
         case MessageTypeInternal.GraphAPI_Post:
         case MessageTypeInternal.HTTP_Get:
@@ -193,5 +191,39 @@ namespace Oculus.Platform
       }
     }
 
+    public static Request<Models.PlatformInitialize> InitializeStandaloneAsync(ulong appID, string accessToken)
+    {
+      var platform = new StandalonePlatform();
+      var initRequest = platform.AsyncInitialize(appID, accessToken);
+
+      if (initRequest == null)
+      {
+        throw new UnityException("Oculus Platform failed to initialize.");
+      }
+
+      // This function is not named well.  Actually means that we have called platform init.
+      // Async initialization may not have finished at this point.
+      Platform.Core.ForceInitialized();
+      (new GameObject("Oculus.Platform.CallbackRunner")).AddComponent<CallbackRunner>();
+      return initRequest;
+    }
+
+    public static class Users
+    {
+      public static Request<Models.LinkedAccountList> GetLinkedAccounts(ServiceProvider[] providers)
+      {
+        if (Core.IsInitialized())
+        {
+          UserOptions userOpts = new UserOptions();
+          foreach (ServiceProvider provider in providers)
+          {
+            userOpts.AddServiceProvider(provider);
+          }
+          return new Request<Models.LinkedAccountList>(CAPI.ovr_User_GetLinkedAccounts((IntPtr)userOpts));
+        }
+
+        return null;
+      }
+    }
   }
 }

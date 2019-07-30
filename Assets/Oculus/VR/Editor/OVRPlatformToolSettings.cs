@@ -206,6 +206,12 @@ namespace Assets.Oculus.VR.Editor
 			set { Instance.targetPlatform = value; }
 		}
 
+		public static bool RunOvrLint
+		{
+			get { return Instance.runOvrLint; }
+			set { Instance.runOvrLint = value; }
+		}
+
 		[SerializeField]
 		private string[] appIDs = new string[(int)OVRPlatformTool.TargetPlatform.None];
 
@@ -262,6 +268,9 @@ namespace Assets.Oculus.VR.Editor
 
 		[SerializeField]
 		private OVRPlatformTool.TargetPlatform targetPlatform = OVRPlatformTool.TargetPlatform.None;
+
+		[SerializeField]
+		private bool runOvrLint = true;
 
 		private static OVRPlatformToolSettings instance;
 		public static OVRPlatformToolSettings Instance

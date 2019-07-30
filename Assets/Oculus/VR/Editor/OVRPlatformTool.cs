@@ -32,6 +32,7 @@ namespace Assets.Oculus.VR.Editor
 
 		private static bool activeProcess = false;
 		private static bool ranSelfUpdate = false;
+		private static int retryCount = 0;
 
 		private const float buttonPadding = 5.0f;
 
@@ -44,6 +45,7 @@ namespace Assets.Oculus.VR.Editor
 		private const float SINGLE_LINE_SPACING = 18f;
 		private const float ASSET_CONFIG_BACKGROUND_PADDING = 10f;
 		private const float DEFAULT_LABEL_WIDTH = 180f;
+		private const int MAX_DOWNLOAD_RETRY_COUNT = 2;
 
 		private static GUIStyle boldFoldoutStyle;
 
@@ -84,15 +86,13 @@ namespace Assets.Oculus.VR.Editor
 #endif
 			EditorUtility.SetDirty(OVRPlatformToolSettings.Instance);
 
-			// If we are starting from a fresh instance of platform tool settings, load redist packages by calling list-redists in the CLI
-			if (OVRPlatformToolSettings.RiftRedistPackages.Count == 0)
-			{
-				string dataPath = Application.dataPath;
-				var thread = new Thread(delegate () {
-					LoadRedistPackages(dataPath);
-				});
-				thread.Start();
-			}
+			// Load redist packages by calling list-redists in the CLI
+			string dataPath = Application.dataPath;
+			var thread = new Thread(delegate () {
+				retryCount = 0;
+				LoadRedistPackages(dataPath);
+			});
+			thread.Start();
 
 			OVRPlugin.SendEvent("oculus_platform_tool", "show_window");
 		}
@@ -312,6 +312,12 @@ namespace Assets.Oculus.VR.Editor
 
 			GUILayout.FlexibleSpace();
 
+			// Run OVR Lint Option
+			EditorGUIUtility.labelWidth = DEFAULT_LABEL_WIDTH;
+			GUIContent RunOvrLintLabel = new GUIContent("Run OVR Lint (Recommended) [?]: ",
+				"Run OVR Lint tool to ensure project is optimized for performance and meets Oculus packaging requirement for publishing.");
+			OVRPlatformToolSettings.RunOvrLint = MakeToggleBox(RunOvrLintLabel, OVRPlatformToolSettings.RunOvrLint);
+
 			// Add an Upload button
 			GUI.enabled = !activeProcess;
 			GUIContent btnTxt = new GUIContent("Upload");
@@ -349,6 +355,7 @@ namespace Assets.Oculus.VR.Editor
 
 			debugLogScroll = EditorGUILayout.BeginScrollView(debugLogScroll);
 			GUIStyle logBoxStyle = new GUIStyle();
+			logBoxStyle.margin.left = 5;
 			logBoxStyle.wordWrap = true;
 			logBoxStyle.normal.textColor = logBoxStyle.focused.textColor = EditorStyles.label.normal.textColor;
 			EditorGUILayout.SelectableLabel(OVRPlatformTool.log, logBoxStyle, GUILayout.Height(position.height - 30));
@@ -395,28 +402,44 @@ namespace Assets.Oculus.VR.Editor
 		{
 			OVRPlatformTool.log = string.Empty;
 			SetDirtyOnGUIChange();
-			ExecuteCommand(targetPlatform);
+			var lintCount = OVRLint.RunCheck();
+			if (lintCount != 0)
+			{
+				OVRPlatformTool.log += lintCount.ToString() + " lint suggestions are found. \n" +
+					"Please run Oculus\\Tools\\OVR Performance Lint Tool to review and fix lint errors. \n" +
+					"You can uncheck Run OVR Lint to bypass lint errors. \n";
+				OVRPlugin.SendEvent("oculus_platform_tool_lint", lintCount.ToString());
+			}
+			else
+			{
+				// Continue uploading process
+				ExecuteCommand(targetPlatform);
+			}
 		}
 
 		static void ExecuteCommand(TargetPlatform targetPlatform)
 		{
 			string dataPath = Application.dataPath;
-			string toolPath = dataPath + "/Oculus/VR/Editor/Tools/";
 			
 			// If we already have a copy of the platform util, check if it needs to be updated
-			if (!ranSelfUpdate && File.Exists(toolPath + "ovr-platform-util.exe"))
+			if (!ranSelfUpdate && File.Exists(dataPath + "/Oculus/VR/Editor/Tools/ovr-platform-util.exe"))
 			{
 				ranSelfUpdate = true;
 				activeProcess = true;
 				var updateThread = new Thread(delegate () {
-					CheckForUpdate(toolPath);
+					retryCount = 0;
+					CheckForUpdate(dataPath);
 				});
 				updateThread.Start();
 			}
 
 			var thread = new Thread(delegate () {
 				// Wait for update process to finish before starting upload process
-				while (activeProcess) { }
+				while (activeProcess)
+				{
+					Thread.Sleep(100);
+				}
+				retryCount = 0;
 				Command(targetPlatform, dataPath);
 			});
 			thread.Start();
@@ -457,7 +480,8 @@ namespace Assets.Oculus.VR.Editor
 
 		static void CheckForUpdate(string dataPath)
 		{
-			InitializePlatformUtilProcess(dataPath + "ovr-platform-util.exe", "self-update");
+			string platformUtilPath = CheckForPlatformUtil(dataPath);
+			InitializePlatformUtilProcess(platformUtilPath, "self-update");
 
 			OVRPlatformTool.log += "Checking for update...\n";
 
@@ -484,23 +508,34 @@ namespace Assets.Oculus.VR.Editor
 				}
 			);
 
-			ovrPlatUtilProcess.Start();
-			ovrPlatUtilProcess.BeginOutputReadLine();
+			try
+			{
+				ovrPlatUtilProcess.Start();
+				ovrPlatUtilProcess.BeginOutputReadLine();
+			}
+			catch
+			{
+				if (ThrowPlatformUtilStartupError(platformUtilPath))
+				{
+					CheckForUpdate(dataPath);
+				}
+			}
 		}
 
 		static void LoadRedistPackages(string dataPath)
 		{
 			// Check / Download the platform util and call list-redists on it
 			activeProcess = true;
-			string platformUtil = CheckForPlatformUtil(dataPath);
-			InitializePlatformUtilProcess(platformUtil, "list-redists");
+			string platformUtilPath = CheckForPlatformUtil(dataPath);
+			InitializePlatformUtilProcess(platformUtilPath, "list-redists");
 
 			OVRPlatformTool.log += "Loading redistributable packages...\n";
+
+			List<RedistPackage> redistPacks = new List<RedistPackage>();
 
 			ovrPlatUtilProcess.Exited += new EventHandler(
 				(s, e) =>
 				{
-					OVRPlatformTool.log += "Successfully loaded redistributables.";
 					activeProcess = false;
 				}
 			);
@@ -515,25 +550,47 @@ namespace Assets.Oculus.VR.Editor
 						if (terms.Length == 2)
 						{
 							RedistPackage redistPack = new RedistPackage(terms[1], terms[0]);
-							OVRPlatformToolSettings.RiftRedistPackages.Add(redistPack);
+							redistPacks.Add(redistPack);
 						}
 					}
 				}
 			);
 
-			ovrPlatUtilProcess.Start();
-			ovrPlatUtilProcess.BeginOutputReadLine();
+			try
+			{
+				ovrPlatUtilProcess.Start();
+				ovrPlatUtilProcess.BeginOutputReadLine();
+
+				ovrPlatUtilProcess.WaitForExit();
+
+				if (redistPacks.Count != OVRPlatformToolSettings.RiftRedistPackages.Count)
+				{
+					OVRPlatformTool.log += "Successfully updated redistributable packages.\n";
+					OVRPlatformToolSettings.RiftRedistPackages = redistPacks;
+				}
+				else
+				{
+					OVRPlatformTool.log += "Redistributable packages up to date.\n";
+				}
+			}
+			catch
+			{
+				if (ThrowPlatformUtilStartupError(platformUtilPath))
+				{
+					LoadRedistPackages(dataPath);
+				}
+			}
 		}
 
 		static void Command(TargetPlatform targetPlatform, string dataPath)
 		{
-			string platformUtil = CheckForPlatformUtil(dataPath);
+			string platformUtilPath = CheckForPlatformUtil(dataPath);
 
 			string args;
 			if (genUploadCommand(targetPlatform, out args))
 			{
 				activeProcess = true;
-				InitializePlatformUtilProcess(platformUtil, args);
+				InitializePlatformUtilProcess(platformUtilPath, args);
 
 				ovrPlatUtilProcess.Exited += new EventHandler(
 					(s, e) =>
@@ -558,9 +615,19 @@ namespace Assets.Oculus.VR.Editor
 					}
 				);
 
-				ovrPlatUtilProcess.Start();
-				ovrPlatUtilProcess.BeginOutputReadLine();
-				ovrPlatUtilProcess.BeginErrorReadLine();
+				try
+				{
+					ovrPlatUtilProcess.Start();
+					ovrPlatUtilProcess.BeginOutputReadLine();
+					ovrPlatUtilProcess.BeginErrorReadLine();
+				}
+				catch
+				{
+					if (ThrowPlatformUtilStartupError(platformUtilPath))
+					{
+						Command(targetPlatform, dataPath);
+					}
+				}
 			}
 		}
 
@@ -842,6 +909,22 @@ namespace Assets.Oculus.VR.Editor
 			Repaint();
 		}
 
+		private static bool ThrowPlatformUtilStartupError(string utilPath)
+		{
+			if (retryCount < MAX_DOWNLOAD_RETRY_COUNT)
+			{
+				retryCount++;
+				OVRPlatformTool.log += "There was a problem starting Oculus Platform Util. Restarting provision process...\n";
+				File.Delete(utilPath);
+				return true;
+			}
+			else
+			{
+				OVRPlatformTool.log += "OVR Platform Tool had a problem with downloading a valid executable after several trys. Please reopen the tool to try again.\n";
+				return false;
+			}
+		}
+
 		private string MakeTextBox(GUIContent label, string variable)
 		{
 			string result = string.Empty;
@@ -955,6 +1038,7 @@ namespace Assets.Oculus.VR.Editor
 
 		private static IEnumerator ProvisionPlatformUtil(string dataPath)
 		{
+#if UNITY_2019_1_OR_NEWER
 			var webRequest = new UnityWebRequest(urlPlatformUtil, UnityWebRequest.kHttpVerbGET);
 			string path = dataPath;
 			webRequest.downloadHandler = new DownloadHandlerFile(path);
@@ -966,14 +1050,41 @@ namespace Assets.Oculus.VR.Editor
 			{
 				var networkErrorMsg = "Failed to provision Oculus Platform Util\n";
 				UnityEngine.Debug.LogError(networkErrorMsg);
-				OVRPlatformTool.log = networkErrorMsg;
+				OVRPlatformTool.log += networkErrorMsg;
 			}
 			else
 			{
-				OVRPlatformTool.log = "Completed Provisioning Oculus Platform Util\n";
+				OVRPlatformTool.log += "Completed Provisioning Oculus Platform Util\n";
 			}
 			SetDirtyOnGUIChange();
 			yield return webOp;
+#else
+			using (WWW www = new WWW(urlPlatformUtil))
+			{
+				UnityEngine.Debug.Log("Started Provisioning Oculus Platform Util");
+				float timer = 0;
+				float timeOut = 60;
+				yield return www;
+				while (!www.isDone && timer < timeOut)
+				{
+					timer += Time.deltaTime;
+					if (www.error != null)
+					{
+						UnityEngine.Debug.Log("Download error: " + www.error);
+						break;
+					}
+					OVRPlatformTool.log = string.Format("Downloading.. {0:P1}", www.progress);
+					SetDirtyOnGUIChange();
+					yield return new WaitForSeconds(1f);
+				}
+				if (www.isDone)
+				{
+					System.IO.File.WriteAllBytes(dataPath, www.bytes);
+					OVRPlatformTool.log = "Completed Provisioning Oculus Platform Util\n";
+					SetDirtyOnGUIChange();
+				}
+			}
+#endif
 		}
 
 		private static void DrawAssetConfigList(Rect rect)

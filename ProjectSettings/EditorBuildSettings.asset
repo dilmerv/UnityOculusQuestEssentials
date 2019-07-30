@@ -11,7 +11,10 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/VRStationary.unity
     guid: d746f388f574e4c0689494a116a0ddd0
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/VRMovementWithController.unity
     guid: 50c25c63b0052442b83ee62dc76fb48c
+  - enabled: 1
+    path: Assets/Scenes/VRMovementWithNature.unity
+    guid: d85e48734c91343d99655851ae61c367
   m_configObjects: {}

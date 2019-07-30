@@ -158,10 +158,10 @@ public class OVRGradleGeneration : IPreprocessBuildWithReport, IPostprocessBuild
 		if (!report.summary.outputPath.Contains("OVRGradleTempExport"))
 		{
 			OVRPlugin.SendEvent("build_complete", (System.DateTime.Now - buildStartTime).TotalSeconds.ToString(), "ovrbuild");
-		}
 #if BUILDSESSION
-		UnityEngine.Debug.LogFormat("build_complete: {0}", (System.DateTime.Now - buildStartTime).TotalSeconds.ToString());
+			UnityEngine.Debug.LogFormat("build_complete: {0}", (System.DateTime.Now - buildStartTime).TotalSeconds.ToString());
 #endif
+		}
 
 #if UNITY_ANDROID
 		if (!isExporting)

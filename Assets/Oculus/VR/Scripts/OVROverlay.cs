@@ -199,7 +199,7 @@ public class OVROverlay : MonoBehaviour
 	protected bool isOverridePending;
 
 	internal const int maxInstances = 15;
-	internal static OVROverlay[] instances = new OVROverlay[maxInstances];
+	public static OVROverlay[] instances = new OVROverlay[maxInstances];
 
 #endregion
 
