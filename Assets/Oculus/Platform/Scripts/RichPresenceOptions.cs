@@ -26,8 +26,20 @@ namespace Oculus.Platform
       CAPI.ovr_RichPresenceOptions_ClearArgs(Handle);
     }
 
+    public void SetCurrentCapacity(uint value) {
+      CAPI.ovr_RichPresenceOptions_SetCurrentCapacity(Handle, value);
+    }
+
+    public void SetDeeplinkMessageOverride(string value) {
+      CAPI.ovr_RichPresenceOptions_SetDeeplinkMessageOverride(Handle, value);
+    }
+
     public void SetEndTime(DateTime value) {
       CAPI.ovr_RichPresenceOptions_SetEndTime(Handle, value);
+    }
+
+    public void SetExtraContext(RichPresenceExtraContext value) {
+      CAPI.ovr_RichPresenceOptions_SetExtraContext(Handle, value);
     }
 
     public void SetIsIdle(bool value) {
@@ -40,6 +52,14 @@ namespace Oculus.Platform
 
     public void SetJoinableId(string value) {
       CAPI.ovr_RichPresenceOptions_SetJoinableId(Handle, value);
+    }
+
+    public void SetMaxCapacity(uint value) {
+      CAPI.ovr_RichPresenceOptions_SetMaxCapacity(Handle, value);
+    }
+
+    public void SetStartTime(DateTime value) {
+      CAPI.ovr_RichPresenceOptions_SetStartTime(Handle, value);
     }
 
 

@@ -107,6 +107,7 @@ namespace Oculus.Platform
       IAP_GetNextPurchaseArrayPage                        = 0x47570A95,
       IAP_GetProductsBySKU                                = 0x7E9ACAF5,
       IAP_GetViewerPurchases                              = 0x3A0F8419,
+      IAP_GetViewerPurchasesDurableCache                  = 0x63599E2B,
       IAP_LaunchCheckoutFlow                              = 0x3F9B0D0D,
       LanguagePack_GetCurrent                             = 0x1F90F0D5,
       LanguagePack_SetCurrent                             = 0x5B4FBBE0,
@@ -141,6 +142,8 @@ namespace Oculus.Platform
       Notification_MarkAsRead                             = 0x717259E3,
       Party_GetCurrent                                    = 0x47933760,
       RichPresence_Clear                                  = 0x57B752B3,
+      RichPresence_GetDestinations                        = 0x586F2D14,
+      RichPresence_GetNextDestinationArrayPage            = 0x67367F45,
       RichPresence_Set                                    = 0x3C147509,
       Room_CreateAndJoinPrivate                           = 0x75D6E377,
       Room_CreateAndJoinPrivate2                          = 0x5A3A6243,
@@ -204,6 +207,13 @@ namespace Oculus.Platform
       /// Matchmaking.Enqueue(). Use Message.GetRoom() to extract the matchmaking
       /// room.
       Notification_Matchmaking_MatchFound = 0x0BC3FCD7,
+
+      /// Sent when the status of a connection has changed.
+      Notification_NetSync_ConnectionStatusChanged = 0x073484CA,
+
+      /// Sent when the list of known connected sessions has changed. Contains the
+      /// new list of sessions.
+      Notification_NetSync_SessionsChanged = 0x387E7F36,
 
       /// Indicates that a connection has been established or there's been an error.
       /// Use NetworkingPeer.GetState() to get the result; as above,
@@ -299,6 +309,7 @@ namespace Oculus.Platform
     public virtual CloudStorageMetadata GetCloudStorageMetadata() { return null; }
     public virtual CloudStorageMetadataList GetCloudStorageMetadataList() { return null; }
     public virtual CloudStorageUpdateResponse GetCloudStorageUpdateResponse() { return null; }
+    public virtual DestinationList GetDestinationList() { return null; }
     public virtual InstalledApplicationList GetInstalledApplicationList() { return null; }
     public virtual LaunchBlockFlowResult GetLaunchBlockFlowResult() { return null; }
     public virtual LaunchFriendRequestFlowResult GetLaunchFriendRequestFlowResult() { return null; }
@@ -316,6 +327,10 @@ namespace Oculus.Platform
     public virtual MatchmakingEnqueueResult GetMatchmakingEnqueueResult() { return null; }
     public virtual MatchmakingEnqueueResultAndRoom GetMatchmakingEnqueueResultAndRoom() { return null; }
     public virtual MatchmakingStats GetMatchmakingStats() { return null; }
+    public virtual NetSyncConnection GetNetSyncConnection() { return null; }
+    public virtual NetSyncSessionList GetNetSyncSessionList() { return null; }
+    public virtual NetSyncSessionsChangedNotification GetNetSyncSessionsChangedNotification() { return null; }
+    public virtual NetSyncSetSessionPropertyResult GetNetSyncSetSessionPropertyResult() { return null; }
     public virtual OrgScopedID GetOrgScopedID() { return null; }
     public virtual Party GetParty() { return null; }
     public virtual PartyID GetPartyID() { return null; }
@@ -440,6 +455,11 @@ namespace Oculus.Platform
           message = new MessageWithCloudStorageUpdateResponse(messageHandle);
           break;
 
+        case Message.MessageType.RichPresence_GetDestinations:
+        case Message.MessageType.RichPresence_GetNextDestinationArrayPage:
+          message = new MessageWithDestinationList(messageHandle);
+          break;
+
         case Message.MessageType.ApplicationLifecycle_RegisterSessionKey:
         case Message.MessageType.Entitlement_GetIsViewerEntitled:
         case Message.MessageType.IAP_ConsumePurchase:
@@ -503,6 +523,14 @@ namespace Oculus.Platform
           message = new MessageWithMatchmakingStatsUnderMatchmakingStats(messageHandle);
           break;
 
+        case Message.MessageType.Notification_NetSync_ConnectionStatusChanged:
+          message = new MessageWithNetSyncConnection(messageHandle);
+          break;
+
+        case Message.MessageType.Notification_NetSync_SessionsChanged:
+          message = new MessageWithNetSyncSessionsChangedNotification(messageHandle);
+          break;
+
         case Message.MessageType.User_GetOrgScopedID:
           message = new MessageWithOrgScopedID(messageHandle);
           break;
@@ -530,6 +558,7 @@ namespace Oculus.Platform
 
         case Message.MessageType.IAP_GetNextPurchaseArrayPage:
         case Message.MessageType.IAP_GetViewerPurchases:
+        case Message.MessageType.IAP_GetViewerPurchasesDurableCache:
           message = new MessageWithPurchaseList(messageHandle);
           break;
 
@@ -910,6 +939,18 @@ namespace Oculus.Platform
     }
 
   }
+  public class MessageWithDestinationList : Message<DestinationList>
+  {
+    public MessageWithDestinationList(IntPtr c_message) : base(c_message) { }
+    public override DestinationList GetDestinationList() { return Data; }
+    protected override DestinationList GetDataFromMessage(IntPtr c_message)
+    {
+      var msg = CAPI.ovr_Message_GetNativeMessage(c_message);
+      var obj = CAPI.ovr_Message_GetDestinationArray(msg);
+      return new DestinationList(obj);
+    }
+
+  }
   public class MessageWithInstalledApplicationList : Message<InstalledApplicationList>
   {
     public MessageWithInstalledApplicationList(IntPtr c_message) : base(c_message) { }
@@ -1087,6 +1128,54 @@ namespace Oculus.Platform
       var msg = CAPI.ovr_Message_GetNativeMessage(c_message);
       var obj = CAPI.ovr_Message_GetMatchmakingStats(msg);
       return new MatchmakingStats(obj);
+    }
+
+  }
+  public class MessageWithNetSyncConnection : Message<NetSyncConnection>
+  {
+    public MessageWithNetSyncConnection(IntPtr c_message) : base(c_message) { }
+    public override NetSyncConnection GetNetSyncConnection() { return Data; }
+    protected override NetSyncConnection GetDataFromMessage(IntPtr c_message)
+    {
+      var msg = CAPI.ovr_Message_GetNativeMessage(c_message);
+      var obj = CAPI.ovr_Message_GetNetSyncConnection(msg);
+      return new NetSyncConnection(obj);
+    }
+
+  }
+  public class MessageWithNetSyncSessionList : Message<NetSyncSessionList>
+  {
+    public MessageWithNetSyncSessionList(IntPtr c_message) : base(c_message) { }
+    public override NetSyncSessionList GetNetSyncSessionList() { return Data; }
+    protected override NetSyncSessionList GetDataFromMessage(IntPtr c_message)
+    {
+      var msg = CAPI.ovr_Message_GetNativeMessage(c_message);
+      var obj = CAPI.ovr_Message_GetNetSyncSessionArray(msg);
+      return new NetSyncSessionList(obj);
+    }
+
+  }
+  public class MessageWithNetSyncSessionsChangedNotification : Message<NetSyncSessionsChangedNotification>
+  {
+    public MessageWithNetSyncSessionsChangedNotification(IntPtr c_message) : base(c_message) { }
+    public override NetSyncSessionsChangedNotification GetNetSyncSessionsChangedNotification() { return Data; }
+    protected override NetSyncSessionsChangedNotification GetDataFromMessage(IntPtr c_message)
+    {
+      var msg = CAPI.ovr_Message_GetNativeMessage(c_message);
+      var obj = CAPI.ovr_Message_GetNetSyncSessionsChangedNotification(msg);
+      return new NetSyncSessionsChangedNotification(obj);
+    }
+
+  }
+  public class MessageWithNetSyncSetSessionPropertyResult : Message<NetSyncSetSessionPropertyResult>
+  {
+    public MessageWithNetSyncSetSessionPropertyResult(IntPtr c_message) : base(c_message) { }
+    public override NetSyncSetSessionPropertyResult GetNetSyncSetSessionPropertyResult() { return Data; }
+    protected override NetSyncSetSessionPropertyResult GetDataFromMessage(IntPtr c_message)
+    {
+      var msg = CAPI.ovr_Message_GetNativeMessage(c_message);
+      var obj = CAPI.ovr_Message_GetNetSyncSetSessionPropertyResult(msg);
+      return new NetSyncSetSessionPropertyResult(obj);
     }
 
   }

@@ -71,6 +71,42 @@ public class OVRManifestPreprocessor
 			Debug.LogWarning("Manifest error: unable to locate headset DoF mode");
 		}
 
+		int handTrackingTextIndex = manifestText.IndexOf("<!-- Request the headset handtracking mode -->");
+		if (handTrackingTextIndex != -1)
+		{
+			if (OVRDeviceSelector.isTargetDeviceQuest)
+			{
+				OVRProjectConfig.HandTrackingSupport targetHandTrackingSupport = OVRProjectConfig.GetProjectConfig().handTrackingSupport;
+				bool handTrackingEntryNeeded = (targetHandTrackingSupport != OVRProjectConfig.HandTrackingSupport.ControllersOnly);
+				bool handTrackingRequired = (targetHandTrackingSupport == OVRProjectConfig.HandTrackingSupport.HandsOnly);
+				if (handTrackingEntryNeeded)
+				{
+					string handTrackingFeatureText = string.Format("<uses-feature android:name=\"oculus.software.handtracking\" android:required=\"{0}\" />",
+							handTrackingRequired ? "true" : "false");
+					string handTrackingPermissionText = string.Format("<uses-permission android:name=\"oculus.permission.handtracking\" />");
+
+					manifestText = manifestText.Insert(handTrackingTextIndex, handTrackingPermissionText);
+					manifestText = manifestText.Insert(handTrackingTextIndex, handTrackingFeatureText);
+				}
+			}
+		}
+		else
+		{
+			Debug.LogWarning("Manifest error: unable to locate headset handtracking mode");
+		}
+
+#if !UNITY_2018_2_OR_NEWER
+		int iconLabelText = manifestText.IndexOf("android:icon=\"@mipmap/app_icon\"");
+		if(iconLabelText != -1)
+		{
+			manifestText = manifestText.Replace("android:icon=\"@mipmap/app_icon\"", "android:icon=\"@drawable/app_icon\"");
+		}
+		else
+		{
+			Debug.LogWarning("Manifest error: failed to update icon label for older version of Unity");
+		}
+#endif
+
 		System.IO.File.WriteAllText(dstFile, manifestText);
 		AssetDatabase.Refresh();
 	}

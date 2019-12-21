@@ -79,7 +79,7 @@ public class OvrAvatar : MonoBehaviour
     [SerializeField]
     internal ovrAvatarAssetLevelOfDetail LevelOfDetail = ovrAvatarAssetLevelOfDetail.Highest;
 #endif
-#if UNITY_ANDROID && UNITY_5_5_OR_NEWER && !UNITY_EDITOR
+#if UNITY_ANDROID && UNITY_5_5_OR_NEWER
     [Tooltip(
         "Enable to use combined meshes to reduce draw calls. Currently only available on mobile devices. " +
         "Will be forced to false on PC.")]
@@ -174,7 +174,7 @@ public class OvrAvatar : MonoBehaviour
     internal OvrAvatarHand HandLeft = null;
     internal OvrAvatarHand HandRight = null;
     internal ovrAvatarLookAndFeelVersion LookAndFeelVersion = ovrAvatarLookAndFeelVersion.Two;
-    internal ovrAvatarLookAndFeelVersion FallbackLookAndFeelVersion = ovrAvatarLookAndFeelVersion.One;
+    internal ovrAvatarLookAndFeelVersion FallbackLookAndFeelVersion = ovrAvatarLookAndFeelVersion.Two;
 #if AVATAR_INTERNAL
     public AvatarControllerBlend BlendController;
     public UnityEvent AssetsDoneLoading = new UnityEvent();
@@ -516,6 +516,12 @@ public class OvrAvatar : MonoBehaviour
         ShowLeftController(showLeftController);
         ShowRightController(showRightController);
 
+        // Pump the Remote driver once to push the controller type through
+        if (Driver != null)
+        {
+            Driver.UpdateTransformsFromPose(sdkAvatar);
+        }
+
         //Fetch all the assets that this avatar uses.
         UInt32 assetCount = CAPI.ovrAvatar_GetReferencedAssetCount(sdkAvatar);
         for (UInt32 i = 0; i < assetCount; ++i)
@@ -587,6 +593,40 @@ public class OvrAvatar : MonoBehaviour
         AvatarLogger.Log(AvatarLogger.Tab + "Oculus User ID: " + oculusUserIDInternal);
 
         Capabilities = 0;
+
+        bool is3Dof = false;
+        var headsetType = OVRPlugin.GetSystemHeadsetType();
+        switch (headsetType)
+        {
+            case OVRPlugin.SystemHeadset.GearVR_R320:
+            case OVRPlugin.SystemHeadset.GearVR_R321:
+            case OVRPlugin.SystemHeadset.GearVR_R322:
+            case OVRPlugin.SystemHeadset.GearVR_R323:
+            case OVRPlugin.SystemHeadset.GearVR_R324:
+            case OVRPlugin.SystemHeadset.GearVR_R325:
+            case OVRPlugin.SystemHeadset.Oculus_Go:
+                is3Dof = true;
+                break;
+            case OVRPlugin.SystemHeadset.Oculus_Quest:
+            case OVRPlugin.SystemHeadset.Rift_S:
+            case OVRPlugin.SystemHeadset.Rift_DK1:
+            case OVRPlugin.SystemHeadset.Rift_DK2:
+            case OVRPlugin.SystemHeadset.Rift_CV1:
+            default:
+                break;
+        }
+
+        // The SDK 3 DOF Arm Model requires the body skeleton to pose itself. It will crash without it
+        // The likely use case here is trying to have an invisible body.
+        // T45010595
+        if (is3Dof && !EnableBody)
+        {
+            AvatarLogger.Log("Forcing the Body component for 3Dof hand tracking, and setting the visibility to 1st person");
+            EnableBody = true;
+            ShowFirstPerson = true;
+            ShowThirdPerson = false;
+        }
+
         if (EnableBody) Capabilities |= ovrAvatarCapabilities.Body;
         if (EnableHands) Capabilities |= ovrAvatarCapabilities.Hands;
         if (EnableBase && EnableBody) Capabilities |= ovrAvatarCapabilities.Base;
@@ -656,7 +696,15 @@ public class OvrAvatar : MonoBehaviour
         {
             if (!assetsFinishedLoading)
             {
-                BuildRenderComponents();
+                try
+                {
+                    BuildRenderComponents();
+                }
+                catch (Exception e)
+                {
+                    assetsFinishedLoading = true;
+                    throw; // rethrow the original exception to preserve callstack
+                }
 #if AVATAR_INTERNAL
                 AssetsDoneLoading.Invoke();
 #endif
@@ -968,12 +1016,26 @@ public class OvrAvatar : MonoBehaviour
 
     bool IsValidMic()
     {
-        if (Microphone.devices.Length < 1)
+        string[] devices = Microphone.devices;
+
+        if (devices.Length < 1)
         {
             return false;
         }
 
-        string selectedDevice = Microphone.devices[0].ToString();
+        int selectedDeviceIndex = 0;
+#if UNITY_STANDALONE_WIN
+        for (int i = 1; i < devices.Length; i++)
+        {
+            if (devices[i].ToUpper().Contains("RIFT"))
+            {
+                selectedDeviceIndex = i;
+                break;
+            }
+        }
+#endif
+
+        string selectedDevice = devices[selectedDeviceIndex];
 
         int minFreq;
         int maxFreq;

@@ -161,7 +161,7 @@ public class OvrAvatarSDKManager : MonoBehaviour
                     IntPtr asset = assetMessage.asset;
                     UInt64 assetID = assetMessage.assetID;
                     ovrAvatarAssetType assetType = CAPI.ovrAvatarAsset_GetType(asset);
-                    OvrAvatarAsset assetData;
+                    OvrAvatarAsset assetData = null;
                     IntPtr avatarOwner = IntPtr.Zero;
 
                     switch (assetType)
@@ -178,6 +178,9 @@ public class OvrAvatarSDKManager : MonoBehaviour
                         case ovrAvatarAssetType.CombinedMesh:
                             avatarOwner = CAPI.ovrAvatarAsset_GetAvatar(asset);
                             assetData = new OvrAvatarAssetMesh(assetID, asset, ovrAvatarAssetType.CombinedMesh);
+                            break;
+                        case ovrAvatarAssetType.FailedLoad:
+                            AvatarLogger.LogWarning("Asset failed to load from SDK " + assetID);
                             break;
                         default:
                             throw new NotImplementedException(string.Format("Unsupported asset type format {0}", assetType.ToString()));
@@ -204,7 +207,7 @@ public class OvrAvatarSDKManager : MonoBehaviour
                     }
                     else
                     {
-                        if (assetLoadedCallbacks.TryGetValue(assetMessage.assetID, out callbackSet))
+                        if (assetData != null && assetLoadedCallbacks.TryGetValue(assetMessage.assetID, out callbackSet))
                         {
                             assetCache.Add(assetID, assetData);
 

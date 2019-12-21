@@ -143,7 +143,7 @@ namespace Oculus.Platform
     }
   }
 
-  public static class ApplicationLifecycle
+  public static partial class ApplicationLifecycle
   {
     public static Models.LaunchDetails GetLaunchDetails() {
       return new Models.LaunchDetails(CAPI.ovr_ApplicationLifecycle_GetLaunchDetails());
@@ -622,6 +622,22 @@ namespace Oculus.Platform
 
   }
 
+  public static partial class ApplicationLifecycle
+  {
+    /// Sent when a launch intent is received (for both cold and warm starts). The
+    /// payload is the type of the intent. ApplicationLifecycle.GetLaunchDetails()
+    /// should be called to get the other details.
+    ///
+    public static void SetLaunchIntentChangedNotificationCallback(Message<string>.Callback callback)
+    {
+      Callback.SetNotificationCallback(
+        Message.MessageType.Notification_ApplicationLifecycle_LaunchIntentChanged,
+        callback
+      );
+    }
+    
+  }
+
   public static partial class AssetFile
   {
     /// DEPRECATED. Use AssetFile.DeleteById()
@@ -986,6 +1002,10 @@ namespace Oculus.Platform
 
   }
 
+  public static partial class Colocation
+  {
+  }
+
   public static partial class Entitlements
   {
     /// Returns whether the current user is entitled to the current app.
@@ -1046,6 +1066,21 @@ namespace Oculus.Platform
       if (Core.IsInitialized())
       {
         return new Request<Models.PurchaseList>(CAPI.ovr_IAP_GetViewerPurchases());
+      }
+
+      return null;
+    }
+
+    /// Retrieve a list of Purchase that the Logged-In-User has made. This list
+    /// will only contain durable purchase (non-consumable) and is populated from a
+    /// device cache. It is recommended in all cases to use
+    /// ovr_User_GetViewerPurchases first and only check the cache if that fails.
+    ///
+    public static Request<Models.PurchaseList> GetViewerPurchasesDurableCache()
+    {
+      if (Core.IsInitialized())
+      {
+        return new Request<Models.PurchaseList>(CAPI.ovr_IAP_GetViewerPurchasesDurableCache());
       }
 
       return null;
@@ -1595,6 +1630,31 @@ namespace Oculus.Platform
 
   }
 
+  public static partial class NetSync
+  {
+    /// Sent when the status of a connection has changed.
+    ///
+    public static void SetConnectionStatusChangedNotificationCallback(Message<Models.NetSyncConnection>.Callback callback)
+    {
+      Callback.SetNotificationCallback(
+        Message.MessageType.Notification_NetSync_ConnectionStatusChanged,
+        callback
+      );
+    }
+    
+    /// Sent when the list of known connected sessions has changed. Contains the
+    /// new list of sessions.
+    ///
+    public static void SetSessionsChangedNotificationCallback(Message<Models.NetSyncSessionsChangedNotification>.Callback callback)
+    {
+      Callback.SetNotificationCallback(
+        Message.MessageType.Notification_NetSync_SessionsChanged,
+        callback
+      );
+    }
+    
+  }
+
   public static partial class Net
   {
     /// Indicates that a connection has been established or there's been an error.
@@ -1700,6 +1760,18 @@ namespace Oculus.Platform
       if (Core.IsInitialized())
       {
         return new Request(CAPI.ovr_RichPresence_Clear());
+      }
+
+      return null;
+    }
+
+    /// Gets all the destinations that the presence can be set to
+    ///
+    public static Request<Models.DestinationList> GetDestinations()
+    {
+      if (Core.IsInitialized())
+      {
+        return new Request<Models.DestinationList>(CAPI.ovr_RichPresence_GetDestinations());
       }
 
       return null;
@@ -2447,6 +2519,29 @@ namespace Oculus.Platform
           CAPI.ovr_HTTP_GetWithMessageType(
             list.NextUrl,
             (int)Message.MessageType.Notification_GetNextRoomInviteNotificationArrayPage
+          )
+        );
+      }
+
+      return null;
+    }
+
+  }
+
+  public static partial class RichPresence {
+    public static Request<Models.DestinationList> GetNextDestinationListPage(Models.DestinationList list) {
+      if (!list.HasNextPage)
+      {
+        Debug.LogWarning("Oculus.Platform.GetNextDestinationListPage: List has no next page");
+        return null;
+      }
+
+      if (Core.IsInitialized())
+      {
+        return new Request<Models.DestinationList>(
+          CAPI.ovr_HTTP_GetWithMessageType(
+            list.NextUrl,
+            (int)Message.MessageType.RichPresence_GetNextDestinationArrayPage
           )
         );
       }
