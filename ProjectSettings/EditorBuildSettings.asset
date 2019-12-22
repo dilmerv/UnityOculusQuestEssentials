@@ -11,7 +11,13 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/VRStationary.unity
     guid: d746f388f574e4c0689494a116a0ddd0
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/VRMovementWithController.unity
     guid: 50c25c63b0052442b83ee62dc76fb48c
+  - enabled: 0
+    path: Assets/Oculus/SampleFramework/Usage/HandsInteractionTrainScene.unity
+    guid: a9c41884ef0c347628dfd8a4af4a022e
+  - enabled: 1
+    path: Assets/Scenes/VRHandTracking.unity
+    guid: 95655ab54d0b542b9a47ebaa9afb0e9b
   m_configObjects: {}
