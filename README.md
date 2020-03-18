@@ -13,5 +13,3 @@ Results from various examples taught in YouTube:
 - VR Controller With Jump and Double Speed Run
 
 ![image](https://github.com/dilmerv/UnityOculusQuestEssentials/blob/master/docs/images/vrcontroller.gif)
-
-Note making one change
